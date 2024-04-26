@@ -74,23 +74,20 @@ def imshowready(img):
     return np.transpose(npimg, (1, 2, 0))
 
 def createImagePreds(numImages, images, preds, labels, classes, imagename):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(24, 10))
+
+    # for actual in labels[0:numImages]:
     for i in range(numImages):
         image = images[i]
         pred = classes[preds[i]]
         gt = classes[labels[i]]
+        # print(i, (2*i)+2)
+        ax = plt.subplot(2, 10, i+1)
+        plt.axis('off')
 
-        plt.subplot(2,int(numImages/2),i+1)
-        # if gradCam:
-            # image = showGradCam(image, trained_model)
-        # plt.imshow(imshowready(image))
-        plt.imshow(image)
-        plt.axis('on')
+        plt.imshow(image, cmap='jet')
 
-        # ret = model.predict(data, batch_size=1)
-        #print(ret)
-
-        plt.title("Pred:" + pred + "\nGT:" + gt, color='#ff0000')
+        ax.set_title(f"actual: {gt} \n predicted: {pred}")
 
     plt.savefig(imagename, bbox_inches='tight')
     plt.show()
@@ -127,10 +124,10 @@ def showIncorrectPreds(numImages, images, incorrectPreds, labels, classes):
         img = (img - img.min()) / (img.max() - img.min())
         img = np.moveaxis(img * 255, [0, 1, 2], [2, 0, 1])
         updatedImages.append(img.astype(int))
-        
-    createImagePreds(numImages, updatedImages, incorrectPreds, labels, classes, imagename)
+    outputimage = createImagePreds(numImages, updatedImages, incorrectPreds, labels, classes, imagename)
+    return outputimage
 
-def showGradCam(numImages, images, incorrectPreds, labels, classes, model, target_layers):
+def showGradCam(numImages, images, incorrectPreds, labels, classes, model, target_layers, transperancy=0.5):
     ds_mean = (0.4914, 0.4822, 0.4465)
     ds_std = (0.247, 0.243, 0.261)
     # print("images[0].shape:", images[0].shape, "images[0] type:", type(images[0]), "len images:", len(images))
@@ -177,7 +174,7 @@ def showGradCam(numImages, images, incorrectPreds, labels, classes, model, targe
         _misclassified_batch[i, 1, :, :] = (_misclassified_batch[i, 1, :, :] * std_G) + mean_G
         _misclassified_batch[i, 2, :, :] = (_misclassified_batch[i, 2, :, :] * std_B) + mean_B
 
-        visualization = show_cam_on_image(_misclassified_batch[i].transpose((1, 2, 0)), cam_result, use_rgb=True, image_weight=0.6)
+        visualization = show_cam_on_image(_misclassified_batch[i].transpose((1, 2, 0)), cam_result, use_rgb=True, image_weight=transperancy)
 
         plt.imshow(visualization, cmap='jet')
 
@@ -190,6 +187,29 @@ def showGradCam(numImages, images, incorrectPreds, labels, classes, model, targe
 
     plt.savefig('gradcam.jpg', bbox_inches='tight')
     plt.show()
+    return fig
+
+inv_normalize = transforms.Normalize(
+    mean=[-0.4914/0.247, -0.4822/0.243, -0.4465/0.261],
+    std=[1/0.247, 1/0.243, 1/0.261]
+)
+
+def getGradCamImage(image, model, target_layers, transperancy):
+    ds_mean = (0.4914, 0.4822, 0.4465)
+    ds_std = (0.247, 0.243, 0.261)
+
+    cam = GradCAM(model=model, target_layers=target_layers)
+    targets = [ClassifierOutputTarget(t) for t in labels]
+
+    grayscale_cam = cam(input_tensor=input_tensor, targets=None)
+    grayscale_cam = grayscale_cam[0, :]
+    
+    img = input_img.squeeze(0)
+    img = inv_normalize(img)
+    
+    visualization = show_cam_on_image(image/255, grayscale_cam, use_rgb=True, image_weight=transperancy)
+        
+    return visualization
 
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''
